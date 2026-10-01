@@ -32,6 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     container: nvidia/cuda:${{ matrix.cuda }}-devel-ubuntu22.04
 
+    defaults:
+      run:
+        shell: bash
+
     strategy:
       fail-fast: false
       matrix:
