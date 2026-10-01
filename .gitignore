@@ -1,0 +1,15 @@
+# Objetos y ejecutables
+*.o
+cuda/gradientes
+openmp/gradientes_omp
+
+# Perfiles de NVIDIA Nsight
+*.nsys-rep
+*.ncu-rep
+*.qdrep
+
+# Editores y sistema
+.vscode/
+.idea/
+*.swp
+.DS_Store

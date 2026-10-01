@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  openmp:
+    name: OpenMP (g++)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compilar
+        working-directory: openmp
+        run: make
+
+      - name: Validar gradientes (secuencial, OpenMP y OpenMP anidado)
+        working-directory: openmp
+        run: |
+          expected="Gradiente: [ 5.00 8.01 8.01 8.02 8.02 ... ]"
+          for args in "-m 0" "-m 1 -t 4" "-m 1 -t 4 -n 1"; do
+            got=$(./gradientes_omp $args -s 1000 -v 6 | tail -n 1)
+            echo "$args -> $got"
+            [ "$got" = "$expected" ] || { echo "::error::Resultado inesperado con $args"; exit 1; }
+          done
+
+  cuda:
+    name: CUDA ${{ matrix.cuda }} (compilación + CPU)
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:${{ matrix.cuda }}-devel-ubuntu22.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        cuda: ['11.8.0', '12.4.1']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar herramientas de compilación
+        run: apt-get update && apt-get install -y --no-install-recommends make g++
+
+      - name: Compilar (sm_75 y sm_86)
+        working-directory: cuda
+        run: |
+          make CUDA_ARCH=75
+          make clean && make CUDA_ARCH=86
+
+      - name: Validar modos CPU (los runners no tienen GPU)
+        working-directory: cuda
+        run: |
+          seq=$(./gradientes -m 0 -v 10 -terms 100 | grep 'Gradiente\[0\]')
+          omp=$(./gradientes -m 1 -v 10 -terms 100 -t 4 | grep 'Gradiente\[0\]')
+          echo "CPU: $seq | OpenMP: $omp"
+          [ "$omp" = "$seq" ] || { echo "::error::CPU y OpenMP difieren"; exit 1; }
+          # Derivada analítica en x0 con 100 términos: 114.450 (tolerancia 0,1 %)
+          echo "$seq" | LC_ALL=C awk '{ d = $2 - 114.450; if (d < 0) d = -d; exit !(d < 0.1145) }' \
+            || { echo "::error::Gradiente lejos del valor analítico"; exit 1; }
+
+          jac=$(./gradientes -m 3 -v 10 | grep -A 3 'Jacobiana 3x3 aplanada' | tail -n 3)
+          echo "$jac"
+          expected=$'[ 2.68 0.90 1.43 ]\n[ 4.00 0.72 1.04 ]\n[ -2.69 8.16 3.92 ]'
+          [ "$jac" = "$expected" ] || { echo "::error::Jacobiana incorrecta"; exit 1; }

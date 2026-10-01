@@ -1,0 +1,8 @@
+# Normaliza los finales de línea a LF en el repositorio
+* text=auto eol=lf
+
+# Los scripts deben conservar LF para poder ejecutarse en Linux
+*.sh text eol=lf
+
+# Estadísticas de lenguajes de GitHub
+*.cu linguist-language=Cuda
